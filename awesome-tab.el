@@ -1735,10 +1735,16 @@ If `awesome-tab-cycle-wrap' is t, the leftmost tab will be swapped with the righ
 (defvar awesome-tab-groups-hash (make-hash-table :test 'equal))
 
 (defun awesome-tab-project-name ()
-  (let ((project-name (cdr (project-current))))
-    (if project-name
-        (format "Project: %s" (expand-file-name project-name))
-      awesome-tab-common-group-name)))
+  (let (project-name)
+    (or (and (buffer-file-name)
+             (setq project-name (cdr (project-current)))
+             (format "Project: %s" (expand-file-name project-name)))
+        (and (buffer-file-name)
+             (fboundp 'projectile-project-name)
+             (setq project-name (projectile-project-name))
+             (not (string= project-name "-"))
+             project-name)
+        awesome-tab-common-group-name)))
 
 (defun awesome-tab-get-group-name (buf)
   (let ((group-name (gethash buf awesome-tab-groups-hash)))
