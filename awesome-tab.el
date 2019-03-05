@@ -1786,10 +1786,17 @@ not the actual logical index position of the current group."
 (defvar awesome-tab-hide-hash (make-hash-table :test 'equal))
 
 (defun awesome-tab-project-name ()
-  (let ((project-name (cdr (project-current))))
-    (if project-name
-        (format "Project: %s" (expand-file-name project-name))
-      awesome-tab-common-group-name)))
+  (let (project-name)
+    (or (and (or (buffer-file-name)
+                 (derived-mode-p 'magit-status-mode 'dired-mode))
+             (fboundp 'projectile-project-name)
+             (setq project-name (projectile-project-name))
+             (not (string= project-name "-"))
+             project-name)
+        (and (buffer-file-name)
+             (setq project-name (cdr (project-current)))
+             (format "Project: %s" (expand-file-name project-name)))
+        awesome-tab-common-group-name)))
 
 (defun awesome-tab-get-group-name (buf)
   (let ((group-name (gethash buf awesome-tab-groups-hash)))
