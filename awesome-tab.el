@@ -242,6 +242,10 @@ This fucntion accepet tab name, tab will hide if this function return ni.")
   "Function called with no argument to obtain the current tab set.
 This is the tab set displayed on the tab bar.")
 
+(defvar awesome-tab-view-function 'awesome-tab-view
+  "Function called to retreive the tabs to display.
+The function is passed a tabset and a selected tab and should return a list of tab.")
+
 (defvar awesome-tab-tab-label-function nil
   "Function that obtains a tab label displayed on the tab bar.
 The function is passed a tab and should return a string.")
@@ -481,10 +485,25 @@ Return the tab selected, or nil if nothing was selected."
   "Return the index of the first visible tab in TABSET."
   (get tabset 'start))
 
-(defsubst awesome-tab-view (tabset)
+(defun awesome-tab-view (tabset &optional tab)
   "Return the list of visible tabs in TABSET.
 That is, the sub-list of tabs starting at the first visible one."
   (nthcdr (awesome-tab-start tabset) (awesome-tab-tabs tabset)))
+
+(defun awesome-tab-focus-view (tabset tab)
+  "Return a list of tabs in TABSET with selected TAB well placed.
+The selected TAB will have at-most one tabs on its left,
+hopefully giving a well focus view of the tabs."
+  (let* ((tabs (awesome-tab-tabs tabset))
+         (len (length tabs))
+         pos)
+    (if (< len 3)
+        tabs
+      (setq pos (position tab tabs))
+      ;; find the left pos
+      (setq pos (% (+ pos len -1) len))
+      (append (nthcdr pos tabs)
+              (butlast tabs (- len pos))))))
 
 (defun awesome-tab-add-tab (tabset object)
   "Return tab if it has opend.
@@ -627,7 +646,7 @@ Call `awesome-tab-tab-label-function' to obtain a label for TAB."
 (defun awesome-tab-line-format (tabset &optional len)
   "Return the `header-line-format' value to display TABSET."
   (let* ((sel (awesome-tab-selected-tab tabset))
-         (tabs (awesome-tab-view tabset))
+         (tabs (funcall awesome-tab-view-function tabset sel))
          (padcolor awesome-tab-background-color)
          atsel elts)
     ;; Track the selected tab to ensure it is always visible.
