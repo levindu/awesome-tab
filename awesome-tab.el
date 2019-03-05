@@ -256,6 +256,10 @@ This fucntion accepet tab name, tab will hide if this function return ni.")
   "Function called with no argument to obtain the current tab set.
 This is the tab set displayed on the tab bar.")
 
+(defvar awesome-tab-view-function 'awesome-tab-natural-view
+  "Function called to retreive the tabs to display.
+The function is passed a tabset and a selected tab and should return a list of tab.")
+
 (defvar awesome-tab-tab-label-function nil
   "Function that obtains a tab label displayed on the tab bar.
 The function is passed a tab and should return a string.")
@@ -501,14 +505,48 @@ Return the tab selected, or nil if nothing was selected."
   "Return the index of the first visible tab in TABSET."
   (get tabset 'start))
 
-(defsubst awesome-tab-view (tabset)
+(defsubst awesome-tab-set-start (tabset start)
+  "Set the index of the first visible tab in TABSET."
+  (put tabset 'start start))
+
+(defun awesome-tab-view (tabset &optional tab)
   "Return the list of visible tabs in TABSET.
 That is, the sub-list of tabs starting at the first visible one."
-  (nthcdr (awesome-tab-start tabset) (awesome-tab-tabs tabset)))
+  (let* ((tabs (awesome-tab-tabs tabset))
+         (len (length tabs))
+         (pos (awesome-tab-start tabset)))
+    (append (nthcdr pos tabs)
+            (butlast tabs (- len pos)))))
+
+(defun awesome-tab-natural-view (tabset tab)
+  "Return a list of tabs in TABSET with selected TAB well placed.
+
+With regards to selecting direction, it gives a natural scrolled
+view of the tabs."
+  (let* ((tabs (awesome-tab-tabs tabset))
+         (len (length tabs))
+         (pos (position tab tabs))
+         (last-pos (or (get tabset 'last-selected) pos))
+         (distance (mod (- pos last-pos) len))
+         (start (awesome-tab-start tabset)))
+    (cond
+     ((< len 4))                        ; skip small tabset
+     ((= distance 1)                    ; right move
+      (when (= start pos)
+        (setq start (1+ pos))))
+     ((= distance (1- len))             ; left move
+      (when (= start last-pos)
+        (setq start pos)))
+     ((< pos start)
+      (setq start pos)))
+    (awesome-tab-set-start tabset (mod start len))
+    (put tabset 'last-selected pos)
+    (append (nthcdr start tabs)
+            (butlast tabs (- len start)))))
 
 (defun awesome-tab-add-tab (tabset object)
   "Return tab if it has opend.
-Otherwise insert new tab on right of current tab."
+Otherwise insert new tab on left of current tab."
   (let ((tabs (awesome-tab-tabs tabset)))
     (if (awesome-tab-get-tab object tabset)
         tabs
@@ -517,8 +555,8 @@ Otherwise insert new tab on right of current tab."
              (split-tabs (awesome-tab-split-tabs tabs (awesome-tab-tab-value selected))))
         (awesome-tab-set-template tabset nil)
         (set tabset (append (first split-tabs)
-                            (list (second split-tabs)
-                                  tab)
+                            (list tab
+                                  (second split-tabs))
                             (third split-tabs)))))))
 
 (defun awesome-tab-split-tabs (tabs object)
@@ -553,8 +591,8 @@ If OBJECT is not found, returns (TABS nil nil)."
   "Scroll the visible tabs in TABSET of COUNT units.
 If COUNT is positive move the view on right.  If COUNT is negative,
 move the view on left."
-  (let ((start (min (max 0 (+ (awesome-tab-start tabset) count))
-                    (1- (length (awesome-tab-tabs tabset))))))
+  (let ((start (mod (+ (awesome-tab-start tabset) count)
+                    (length (awesome-tab-tabs tabset)))))
     (when (/= start (awesome-tab-start tabset))
       (awesome-tab-set-template tabset nil)
       (put tabset 'start start))))
@@ -633,42 +671,39 @@ Call `awesome-tab-tab-label-function' to obtain a label for TAB."
 (defun awesome-tab-line-format (tabset &optional len)
   "Return the `header-line-format' value to display TABSET."
   (let* ((sel (awesome-tab-selected-tab tabset))
-         (tabs (awesome-tab-view tabset))
+         (tabs (funcall awesome-tab-view-function tabset sel))
          (padcolor awesome-tab-background-color)
-         atsel elts)
+         elts)
     ;; Track the selected tab to ensure it is always visible.
     (when awesome-tab--track-selected
-      (while (not (memq sel tabs))
-        (awesome-tab-scroll tabset -1)
-        (setq tabs (awesome-tab-view tabset)))
-      (while (and tabs (not atsel))
-        (setq elts  (cons (awesome-tab-line-tab (car tabs)) elts)
-              atsel (eq (car tabs) sel)
-              tabs  (cdr tabs)))
+      (let* ((split-tabs (awesome-tab-split-tabs tabs (awesome-tab-tab-value sel)))
+             (head-tabs (first split-tabs))
+             (tail-tabs (third split-tabs)))
+        (setq tabs tail-tabs)
+        (setq elts (mapcar 'awesome-tab-line-tab
+                           (append head-tabs
+                                   (list sel))))
+        ;; Scroll TABSET and ELTS until the last tab becomes visible.
+        (with-temp-buffer
+          (let ((truncate-partial-width-windows nil)
+                (inhibit-modification-hooks t)
+                (buffer-undo-list t)
+                truncate-lines
+                deactivate-mark ;; Prevent deactivation of the mark!
+                start)
+            (setq start (point))
+            (while (and (cdr (cdr elts)) ;; Always show the selected tab!
+                        (progn
+                          (delete-region start (point-max))
+                          (goto-char (point-max))
+                          (apply 'insert elts)
+                          (goto-char (point-min))
+                          (or (> (vertical-motion 1) 0)
+                              (and len (> (point-max) len)))))
+              (awesome-tab-scroll tabset 1)
+              (setq elts (cdr elts)))))
       (setq elts (nreverse elts))
-      ;; At this point the selected tab is the last elt in ELTS.
-      ;; Scroll TABSET and ELTS until the selected tab becomes
-      ;; visible.
-      (with-temp-buffer
-        (let ((truncate-partial-width-windows nil)
-              (inhibit-modification-hooks t)
-              deactivate-mark ;; Prevent deactivation of the mark!
-              start)
-          (setq truncate-lines nil
-                buffer-undo-list t)
-          (setq start (point))
-          (while (and (cdr elts) ;; Always show the selected tab!
-                      (progn
-                        (delete-region start (point-max))
-                        (goto-char (point-max))
-                        (apply 'insert elts)
-                        (goto-char (point-min))
-                        (or (> (vertical-motion 1) 0)
-                            (and len (> (point-max) len)))))
-            (awesome-tab-scroll tabset 1)
-            (setq elts (cdr elts)))))
-      (setq elts (nreverse elts))
-      (setq awesome-tab--track-selected nil))
+      (setq awesome-tab--track-selected nil)))
     ;; Format remaining tabs.
     (while tabs
       (setq elts (cons (awesome-tab-line-tab (car tabs)) elts)
@@ -680,8 +715,7 @@ Call `awesome-tab-tab-label-function' to obtain a label for TAB."
            (propertize "%-"
                        'face (list :background padcolor
                                    :foreground padcolor)
-                       'pointer 'arrow)))
-    ))
+                       'pointer 'arrow)))))
 
 (defun awesome-tab-line (&optional len)
   "Return the header line templates that represent the tab bar.
@@ -884,6 +918,7 @@ Returns non-nil if the new state is enabled.
         ;; Save current default value of `header-line-format'.
         (setq awesome-tab--global-hlf (default-value 'header-line-format))
         (awesome-tab-init-tabsets-store)
+        (add-hook 'post-command-hook awesome-tab-adjust-buffer-order-function)
         (setq-default header-line-format awesome-tab-header-line-format))
 ;;; OFF
     (when (awesome-tab-mode-on-p)
@@ -897,6 +932,7 @@ Returns non-nil if the new state is enabled.
             (buffer-list))
       ;; Restore previous `header-line-format'.
       (setq-default header-line-format awesome-tab--global-hlf)
+      (remove-hook 'post-command-hook awesome-tab-adjust-buffer-order-function)
       (awesome-tab-free-tabsets-store))
     ))
 
@@ -1437,7 +1473,7 @@ That is, a string used to represent it on the tab bar."
   ;; Render tab.
   (awesome-tab-render-separator
    (list awesome-tab-style-left
-         (format " %s "
+         (format "%s"
                  (let ((bufname (awesome-tab-buffer-name (car tab))))
                    (if (> awesome-tab-label-fixed-length 0)
                        (awesome-tab-truncate-string  awesome-tab-label-fixed-length bufname)
@@ -1508,12 +1544,13 @@ after the current buffer has been killed.  Try first the buffer in tab
 after the current one, then the buffer in tab before.  On success, put
 the sibling buffer in front of the buffer list, so it will be selected
 first."
-  (and (eq header-line-format awesome-tab-header-line-format)
+  (and ;; (eq header-line-format awesome-tab-header-line-format)
        (eq awesome-tab-current-tabset-function 'awesome-tab-buffer-tabs)
        (eq (current-buffer) (window-buffer (selected-window)))
-       (let ((bl (awesome-tab-tab-values (awesome-tab-current-tabset)))
-             (b  (current-buffer))
-             found sibling)
+       (let* ((bl (awesome-tab-tab-values (awesome-tab-current-tabset)))
+              (head (car bl))
+              (b  (current-buffer))
+              found sibling)
          (remhash b awesome-tab-groups-hash)
          (remhash b awesome-tab-hide-hash)
          (while (and bl (not found))
@@ -1521,10 +1558,11 @@ first."
                (setq found t)
              (setq sibling (car bl)))
            (setq bl (cdr bl)))
-         (when (and (setq sibling (or (car bl) sibling))
+         (when (and (setq sibling (or (car bl) head sibling))
                     (buffer-live-p sibling))
            ;; Move sibling buffer in front of the buffer list.
            (save-current-buffer
+             (setq awesome-tab-last-focus-buffer sibling)
              (switch-to-buffer sibling))))))
 
 ;;; Tab bar buffer setup
@@ -1907,9 +1945,6 @@ Other buffer group by `awesome-tab-get-group-name' with project name."
 (defvar awesome-tab-last-focus-buffer nil
   "The last focus buffer.")
 
-(defvar awesome-tab-last-focus-buffer-group nil
-  "The group name of last focus buffer.")
-
 (defun awesome-tab-remove-nth-element (nth list)
   (if (zerop nth) (cdr list)
     (let ((last (nthcdr (1- nth) list)))
@@ -1927,48 +1962,33 @@ Other buffer group by `awesome-tab-get-group-name' with project name."
 
 (defun awesome-tab-adjust-buffer-order ()
   "Put the two buffers switched to the adjacent position after current buffer changed."
-  ;; Don't trigger by awesome-tab command, it's annoying.
-  ;; This feature should trigger by search plugins, such as ibuffer, helm or ivy.
-  (unless (string-prefix-p "awesome-tab" (format "%s" this-command))
+  (let ((current (current-buffer))
+        (previous awesome-tab-last-focus-buffer))
     ;; Just continue when buffer changed.
-    (when (and (not (eq (current-buffer) awesome-tab-last-focus-buffer))
+    (when (and (not (eq current previous))
                (not (minibufferp)))
-      (let* ((current (current-buffer))
-             (previous awesome-tab-last-focus-buffer)
-             (current-group (first (funcall awesome-tab-buffer-groups-function))))
-        ;; Record last focus buffer.
-        (setq awesome-tab-last-focus-buffer current)
-
-        ;; Just continue if two buffers are in same group.
-        (when (eq current-group awesome-tab-last-focus-buffer-group)
-          (let* ((bufset (awesome-tab-get-tabset current-group))
-                 (current-group-tabs (awesome-tab-tabs bufset))
-                 (current-group-buffers (mapcar 'car current-group-tabs))
-                 (current-buffer-index (cl-position current current-group-buffers))
-                 (previous-buffer-index (cl-position previous current-group-buffers)))
-
-            ;; If the two tabs are not adjacent, swap the positions of the two tabs.
-            (when (and current-buffer-index
-                       previous-buffer-index
-                       (> (abs (- current-buffer-index previous-buffer-index)) 1))
-              (let* ((copy-group-tabs (copy-list current-group-tabs))
-                     (previous-tab (nth previous-buffer-index copy-group-tabs))
-                     (current-tab (nth current-buffer-index copy-group-tabs))
-                     (base-group-tabs (awesome-tab-remove-nth-element previous-buffer-index copy-group-tabs))
-                     (new-group-tabs
-                      (if (> current-buffer-index previous-buffer-index)
-                          (awesome-tab-insert-before base-group-tabs current-tab previous-tab)
-                        (awesome-tab-insert-after base-group-tabs current-tab previous-tab))))
-                (set bufset new-group-tabs)
-                (awesome-tab-set-template bufset nil)
-                (awesome-tab-display-update)
-                ))))
-
-        ;; Update the group name of the last access tab.
-        (setq awesome-tab-last-focus-buffer-group current-group)
-        ))))
-
-(add-hook 'post-command-hook awesome-tab-adjust-buffer-order-function)
+      ;; record last focus buffer and group
+      (setq awesome-tab-last-focus-buffer current)
+      (unless (string-prefix-p "awesome-tab" (format "%s" this-command))
+        ;; Don't trigger by awesome-tab command, it's annoying.
+        ;; This feature should trigger by search plugins, such as ibuffer, helm or ivy.
+        (let* ((tabset (awesome-tab-current-tabset))
+               (tabs (awesome-tab-tabs tabset))
+               (current-tab (awesome-tab-get-tab current tabset))
+               (split-tabs (awesome-tab-split-tabs tabs previous))
+               (previous-tab (second split-tabs))
+               copy-tabs)
+          (setq awesome-tab-last-focus-buffer current)
+          ;; continue if last focus buffer is in current tabset
+          (when previous-tab
+            ;; first remove current-tab
+            (setq copy-tabs (append
+                             (remove current-tab (first split-tabs))
+                             (list current-tab previous-tab)
+                             (remove current-tab (third split-tabs))))
+            (set tabset copy-tabs)
+            (awesome-tab-set-template tabset nil)
+            (awesome-tab-display-update)))))))
 
 ;;; Awesome-Tab integration
 ;;
