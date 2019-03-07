@@ -235,6 +235,9 @@ background color of the `default' face otherwise."
   "Function to hide tab.
 This fucntion accepet tab name, tab will hide if this function return ni.")
 
+(defvar awesome-tab-hide-buffer-list '("*Article*" "*vc-diff*" "*Help*" "*Messages*")
+  "Buffer name list to hide tab.")
+
 (defvar awesome-tab-current-tabset-function nil
   "Function called with no argument to obtain the current tab set.
 This is the tab set displayed on the tab bar.")
@@ -1823,11 +1826,7 @@ Other buffer group by `awesome-tab-get-group-name' with project name."
      (string-prefix-p "*helm" name)
      (string-prefix-p "*Compile-Log*" name)
      (string-prefix-p "*lsp" name)
-
-     ;; Is not magit buffer.
-     (and (string-prefix-p "magit" name)
-          (not (file-name-extension name)))
-     )))
+     (member name awesome-tab-hide-buffer-list))))
 
 (defvar awesome-tab-last-focus-buffer nil
   "The last focus buffer.")
