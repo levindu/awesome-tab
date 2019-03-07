@@ -434,6 +434,12 @@ That is, remove it from the tab sets store."
 Return the tab found, or nil if not found."
   (assoc object (awesome-tab-tabs tabset)))
 
+(defsubst awesome-tab-get-tab-position (object tabset)
+  "Search for a tab with value OBJECT in TABSET.
+Return the index of the tab found, or nil if not found."
+  (position object (if (listp tabset) tabset (awesome-tab-tabs tabset))
+            :key 'awesome-tab-tab-value))
+
 (defsubst awesome-tab-member (tab tabset)
   "Return non-nil if TAB is in TABSET."
   (or (eq (awesome-tab-tab-tabset tab) tabset)
