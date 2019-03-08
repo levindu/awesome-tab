@@ -519,20 +519,12 @@ Otherwise insert new tab on right of current tab."
         tabs
       (let* ((tab (awesome-tab-make-tab object tabset))
              (selected (awesome-tab-selected-tab tabset))
-             (selected-index (cl-position (car selected) (mapcar 'car tabs))))
+             (split-tabs (awesome-tab-split-tabs tabs (awesome-tab-tab-value selected))))
         (awesome-tab-set-template tabset nil)
-        (set tabset (awesome-tab-insert-at tabs selected-index tab))
-        ))))
-
-(defun awesome-tab-insert-at (list index insert-element)
-  (let ((counter 0)
-        (result '()))
-    (dolist (element list)
-      (if (equal counter index)
-          (setq result (append result (list element insert-element)))
-        (setq result (append result (list element))))
-      (setq counter (+ 1 counter)))
-    result))
+        (set tabset (append (first split-tabs)
+                            (list (second split-tabs)
+                                  tab)
+                            (third split-tabs)))))))
 
 (defun awesome-tab-split-tabs (tabs object)
   "Find OBJECT in TABS list, and return the split list of (left_tabs tab right_tabs).
