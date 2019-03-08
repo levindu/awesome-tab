@@ -506,6 +506,21 @@ Otherwise insert new tab on right of current tab."
       (setq counter (+ 1 counter)))
     result))
 
+(defun awesome-tab-split-tabs (tabs object)
+  "Find OBJECT in TABS list, and return the split list of (left_tabs tab right_tabs).
+
+If OBJECT is not found, returns (TABS nil nil)."
+  (let ((saved-tabs tabs)
+        left tab)
+    (catch 'result
+      (while tabs
+        (setq tab (car tabs))
+        (when (eq object (awesome-tab-tab-value tab))
+          (throw 'result (list (nreverse left) tab (cdr tabs))))
+        (push tab left)
+        (setq tabs (cdr tabs)))
+      (list saved-tabs nil nil))))
+
 (defun awesome-tab-delete-tab (tab)
   "Remove TAB from its tab set."
   (let* ((tabset (awesome-tab-tab-tabset tab))
