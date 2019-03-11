@@ -714,7 +714,7 @@ Inhibit display of the tab bar in current window `awesome-tab-hide-tab-function'
     (or (awesome-tab-template awesome-tab-current-tabset)
         (awesome-tab-line-format awesome-tab-current-tabset len)))))
 
-(defconst awesome-tab-header-line-format '(:eval (awesome-tab-line))
+(defconst awesome-tab-header-line-format '(:eval (awesome-tab-format-merge "" 0.618))
   "The tab bar header line format.")
 
 ;;; Cyclic navigation through tabs
