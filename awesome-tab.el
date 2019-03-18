@@ -1514,6 +1514,8 @@ first."
        (let ((bl (awesome-tab-tab-values (awesome-tab-current-tabset)))
              (b  (current-buffer))
              found sibling)
+         (remhash b awesome-tab-groups-hash)
+         (remhash b awesome-tab-hide-hash)
          (while (and bl (not found))
            (if (eq b (car bl))
                (setq found t)
@@ -1796,8 +1798,8 @@ not the actual logical index position of the current group."
   (add-hook hook '(lambda () (setq-local header-line-format nil))))
 
 ;; Rules to control buffer's group rules.
-(defvar awesome-tab-groups-hash (make-hash-table :test 'equal))
-(defvar awesome-tab-hide-hash (make-hash-table :test 'equal))
+(defvar awesome-tab-groups-hash (make-hash-table :test 'eq :weakness 'key))
+(defvar awesome-tab-hide-hash (make-hash-table :test 'eq :weakness 'key))
 
 (defun awesome-tab-project-name ()
   (let (project-name)
