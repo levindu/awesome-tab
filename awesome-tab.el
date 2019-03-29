@@ -82,7 +82,7 @@
 ;; `awesome-tab-background-color'
 ;; `awesome-tab-selected'
 ;; `awesome-tab-unselected'
-;; `awesome-tab-label-fixed-length'
+;; `awesome-tab-label-max-length'
 ;;
 
 ;;; Change log:
@@ -212,8 +212,11 @@ the group name uses the name of this variable."
   :group 'awesome-tab
   :type 'string)
 
-(defcustom awesome-tab-label-fixed-length 0
-  "Fixed length of label. Set to 0 if dynamic."
+(defcustom awesome-tab-label-max-length 0
+  "Max length of label.
+
+<=0 means to keep label as it is; > 0 means to truncate the label
+if it is greater than that limit."
   :group 'awesome-tab
   :type 'int)
 
@@ -335,12 +338,13 @@ room."
       (concat (substring str 0 i) el (substring str n)))
      )))
 
-;; Copied from s.el
-(defun awesome-tab-truncate-string (len s &optional ellipsis)
+;; Copied from s.el, adding pad
+(defun awesome-tab-truncate-string (len s &optional ellipsis pad)
   "If S is longer than LEN, cut it down and add ELLIPSIS to the end.
 
 The resulting string, including ellipsis, will be LEN characters
-long.
+long. If PAD is non-nil, the resulting string will be padded with
+space to be LEN characters long.
 
 When not specified, ELLIPSIS defaults to ‘...’."
   (declare (pure t) (side-effect-free t))
@@ -348,7 +352,9 @@ When not specified, ELLIPSIS defaults to ‘...’."
     (setq ellipsis "..."))
   (if (> (length s) len)
       (format "%s%s" (substring s 0 (- len (length ellipsis))) ellipsis)
-    (concat s (make-string (- len (length s)) ? ))))
+    (if pad
+        (concat s (make-string (- len (length s)) ? ))
+      s)))
 
 ;;; Tab and tab set
 ;;
@@ -1475,8 +1481,8 @@ That is, a string used to represent it on the tab bar."
    (list awesome-tab-style-left
          (format "%s"
                  (let ((bufname (awesome-tab-buffer-name (car tab))))
-                   (if (> awesome-tab-label-fixed-length 0)
-                       (awesome-tab-truncate-string  awesome-tab-label-fixed-length bufname)
+                   (if (> awesome-tab-label-max-length 0)
+                       (awesome-tab-truncate-string  awesome-tab-label-max-length bufname)
                      bufname)))
          awesome-tab-style-right)))
 

@@ -13,7 +13,7 @@ Table of Contents
         * [TabStyle](#tabstyle)
         * [HideRules](#hiderules)
         * [GroupRules](#grouprules)
-        * [FixedWidth](#fixedwidth)
+        * [Truncate Tab Label](#truncatetablabel)
 
 # What is it?
 
@@ -241,10 +241,12 @@ Default functions is ```awesome-tab-adjust-buffer-order``` , you can write your 
       )))
 ```
 
-##### FixedWidth
+##### Truncate Tab Label
 
-If you'd like all the tab labels using the same length, such as 14, use:
+If a buffer has a very long name, the coresponding tab will be too wide. You can
+set the max length of the tab label. The label will be truncated (indicated
+by appending "...") if it is greater than that limit.
 
 ```Elisp
-(setq awesome-tab-label-fixed-length 14)
+(setq awesome-tab-label-max-length 20)
 ```
